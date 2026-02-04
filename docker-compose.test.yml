@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  customer_service:
+    build:
+      context: .
+      dockerfile: docker/customer_service/Dockerfile
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres/customer_service_test
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      RAILS_ENV: test
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    command: bundle exec rails server -b 0.0.0.0 -p 3002
+
+  customer_worker:
+    build:
+      context: .
+      dockerfile: docker/customer_service/Dockerfile
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres/customer_service_test
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      RAILS_ENV: test
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    command: bundle exec rake consumers:start
+
+  order_service:
+    build:
+      context: .
+      dockerfile: docker/order_service/Dockerfile
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres/order_service_test
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      CUSTOMER_SERVICE_URL: http://customer_service:3002
+      RAILS_ENV: test
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      customer_service:
+        condition: service_started
+    command: bundle exec rails server -b 0.0.0.0 -p 3001
+
+  integration_tests:
+    build:
+      context: ./integration_tests
+    environment:
+      ORDER_SERVICE_URL: http://order_service:3001
+      CUSTOMER_SERVICE_URL: http://customer_service:3002
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      - order_service
+      - customer_service
+      - customer_worker
+    command: bundle exec rspec --format documentation
