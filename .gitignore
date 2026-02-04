@@ -1,0 +1,77 @@
+# Ruby/Rails
+*.gem
+*.rbc
+/.config
+/coverage/
+/InstalledFiles
+/pkg/
+/spec/reports/
+/spec/examples.txt
+/test/tmp/
+/test/version_tmp/
+/tmp/
+
+# Documentation cache and generated files
+/.yardoc/
+/_yardoc/
+/doc/
+/rdoc/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.local.yml
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Docker volumes
+docker/data/
+postgres_data/
+rabbitmq_data/
+
+# Rails specific
+/log/*
+/tmp/*
+!/log/.keep
+!/tmp/.keep
+*.log
+/storage/*
+!/storage/.keep
+/public/assets
+.byebug_history
+
+# Bundler
+/vendor/bundle
+/.bundle
+
+# Coverage
+/coverage/
+.simplecov
+
+# Database
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-shm
+*.sqlite3-wal
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl
+
+# Credentials
+/config/credentials/*.key
+/config/master.key
+
+# Node modules (if any)
+node_modules/
