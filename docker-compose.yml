@@ -3,7 +3,7 @@ version: '3.8'
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: monokera_postgres
+    container_name: challenge_postgres
     ports:
       - "5432:5432"
     environment:
@@ -21,7 +21,7 @@ services:
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
-    container_name: monokera_rabbitmq
+    container_name: challenge_rabbitmq
     ports:
       - "5672:5672"
       - "15672:15672"

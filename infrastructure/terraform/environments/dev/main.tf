@@ -9,7 +9,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket = "monokera-terraform-state"
+    bucket = "challenge-terraform-state"
     key    = "dev/terraform.tfstate"
     region = "us-east-1"
   }
@@ -28,7 +28,7 @@ provider "aws" {
 }
 
 variable "project_name" {
-  default = "monokera"
+  default = "challenge"
 }
 
 variable "environment" {

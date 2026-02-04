@@ -72,7 +72,7 @@ resource "aws_db_instance" "main" {
   storage_type          = "gp3"
   storage_encrypted     = true
 
-  db_name  = "monokera"
+  db_name  = "challenge"
   username = "postgres"
   password = var.db_password
 
