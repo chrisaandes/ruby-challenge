@@ -1,0 +1,5 @@
+project_name      = "monokera"
+environment       = "dev"
+aws_region        = "us-east-1"
+db_password       = "CHANGE_ME_secure_password_123"
+rabbitmq_password = "CHANGE_ME_secure_password_456"
