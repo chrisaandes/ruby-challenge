@@ -44,6 +44,8 @@ rabbitmq_data/
 /tmp/*
 !/log/.keep
 !/tmp/.keep
+services/**/tmp/
+services/**/log/
 *.log
 /storage/*
 !/storage/.keep
