@@ -1,0 +1,1135 @@
+{
+  "info": {
+    "name": "Ruby Challenge - Microservices Showcase",
+    "description": "Colección completa para probar y demostrar la arquitectura de microservicios Ruby on Rails.\n\n## Arquitectura\n- **Order Service** (localhost:3001): Gestión de órdenes\n- **Customer Service** (localhost:3002): Gestión de clientes\n- **RabbitMQ**: Comunicación asíncrona via eventos\n\n## Flujo Principal\n1. Crear orden → Order Service valida cliente via HTTP → Crea orden → Publica evento a RabbitMQ\n2. Customer Service consume evento → Incrementa orders_count del cliente\n\n## Clientes Seed\n| ID | Nombre | Email |\n|---|---|---|\n| 1 | María García | maria@example.com |\n| 2 | Carlos López | carlos@example.com |\n| 3 | Ana Martínez | ana@example.com |\n| 4 | Juan Hernández | juan@example.com |\n| 5 | Laura Sánchez | laura@example.com |",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "order_service_url",
+      "value": "http://localhost:3001",
+      "type": "string"
+    },
+    {
+      "key": "customer_service_url",
+      "value": "http://localhost:3002",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Health Checks",
+      "description": "Verificar que todos los servicios y dependencias estén corriendo correctamente.",
+      "item": [
+        {
+          "name": "Order Service - Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{order_service_url}}/health",
+              "host": ["{{order_service_url}}"],
+              "path": ["health"]
+            },
+            "description": "Verifica que el Order Service esté activo.\n\nRespuesta esperada: `OK`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Order Service is healthy', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.text()).to.equal('OK');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Customer Service - Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{customer_service_url}}/health",
+              "host": ["{{customer_service_url}}"],
+              "path": ["health"]
+            },
+            "description": "Verifica que el Customer Service esté activo.\n\nRespuesta esperada: `OK`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Customer Service is healthy', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.text()).to.equal('OK');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Order Service - RabbitMQ Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{order_service_url}}/health/rabbitmq",
+              "host": ["{{order_service_url}}"],
+              "path": ["health", "rabbitmq"]
+            },
+            "description": "Verifica la conexión del Order Service con RabbitMQ.\n\nRespuesta esperada:\n```json\n{\"status\":\"ok\",\"rabbitmq\":\"connected\"}\n```"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('RabbitMQ is connected', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.status).to.equal('ok');",
+                  "    pm.expect(json.rabbitmq).to.equal('connected');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Customer Service - RabbitMQ Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{customer_service_url}}/health/rabbitmq",
+              "host": ["{{customer_service_url}}"],
+              "path": ["health", "rabbitmq"]
+            },
+            "description": "Verifica la conexión del Customer Service con RabbitMQ.\n\n**Nota:** El proceso web puede mostrar \"disconnected\" ya que la conexión real la mantiene el worker de Sneakers (proceso separado)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Response is valid JSON', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.response.to.be.json;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Customer Service - Consultas",
+      "description": "Endpoints para consultar información de clientes. Los clientes vienen precargados con el seed.",
+      "item": [
+        {
+          "name": "Obtener Cliente 1 - María García",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{customer_service_url}}/api/v1/customers/1",
+              "host": ["{{customer_service_url}}"],
+              "path": ["api", "v1", "customers", "1"]
+            },
+            "description": "Obtiene información del cliente ID 1 (María García).\n\nRespuesta esperada:\n```json\n{\n  \"customer_name\": \"María García\",\n  \"address\": \"Calle Principal 123, CDMX\",\n  \"orders_count\": 0\n}\n```\n\n**Nota:** `orders_count` se incrementa automáticamente cuando se crea una orden para este cliente."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Customer found', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.customer_name).to.equal('María García');",
+                  "    pm.expect(json).to.have.property('address');",
+                  "    pm.expect(json).to.have.property('orders_count');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Obtener Cliente 2 - Carlos López",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{customer_service_url}}/api/v1/customers/2",
+              "host": ["{{customer_service_url}}"],
+              "path": ["api", "v1", "customers", "2"]
+            },
+            "description": "Obtiene información del cliente ID 2 (Carlos López)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Customer found', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.customer_name).to.equal('Carlos López');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Obtener Cliente 3 - Ana Martínez",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{customer_service_url}}/api/v1/customers/3",
+              "host": ["{{customer_service_url}}"],
+              "path": ["api", "v1", "customers", "3"]
+            },
+            "description": "Obtiene información del cliente ID 3 (Ana Martínez)."
+          }
+        },
+        {
+          "name": "Obtener Cliente 4 - Juan Hernández",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{customer_service_url}}/api/v1/customers/4",
+              "host": ["{{customer_service_url}}"],
+              "path": ["api", "v1", "customers", "4"]
+            },
+            "description": "Obtiene información del cliente ID 4 (Juan Hernández)."
+          }
+        },
+        {
+          "name": "Obtener Cliente 5 - Laura Sánchez",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{customer_service_url}}/api/v1/customers/5",
+              "host": ["{{customer_service_url}}"],
+              "path": ["api", "v1", "customers", "5"]
+            },
+            "description": "Obtiene información del cliente ID 5 (Laura Sánchez)."
+          }
+        },
+        {
+          "name": "Cliente inexistente (404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{customer_service_url}}/api/v1/customers/999",
+              "host": ["{{customer_service_url}}"],
+              "path": ["api", "v1", "customers", "999"]
+            },
+            "description": "Intenta obtener un cliente que no existe.\n\nRespuesta esperada: `404 Not Found`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Customer not found returns 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Order Service - CRUD",
+      "description": "Endpoints para crear y consultar órdenes.",
+      "item": [
+        {
+          "name": "Crear Orden - MacBook Pro (Cliente 1)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order\": {\n    \"customer_id\": 1,\n    \"product_name\": \"MacBook Pro M3\",\n    \"quantity\": 1,\n    \"price\": 2499.99\n  }\n}"
+            },
+            "url": {
+              "raw": "{{order_service_url}}/api/v1/orders",
+              "host": ["{{order_service_url}}"],
+              "path": ["api", "v1", "orders"]
+            },
+            "description": "Crea una orden de MacBook Pro para María García (ID 1).\n\n**Flujo interno:**\n1. Order Service llama a Customer Service via HTTP para validar que el cliente existe\n2. Si existe, crea la orden en la BD\n3. Publica evento `order.created` a RabbitMQ\n4. Customer Service consume el evento e incrementa `orders_count`\n\nRespuesta esperada (201 Created):\n```json\n{\n  \"order\": {\n    \"id\": 1,\n    \"customer_id\": 1,\n    \"product_name\": \"MacBook Pro M3\",\n    \"quantity\": 1,\n    \"status\": \"pending\",\n    \"price\": 2499.99,\n    \"total_amount\": 2499.99\n  },\n  \"customer\": {\n    \"customer_name\": \"María García\",\n    \"address\": \"Calle Principal 123, CDMX\",\n    \"orders_count\": 0\n  }\n}\n```"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Order created successfully', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.order).to.have.property('id');",
+                  "    pm.expect(json.order.status).to.equal('pending');",
+                  "    pm.expect(json.order.product_name).to.equal('MacBook Pro M3');",
+                  "    pm.expect(json.order.total_amount).to.equal(2499.99);",
+                  "    pm.expect(json.customer.customer_name).to.equal('María García');",
+                  "    ",
+                  "    // Save order ID for later use",
+                  "    pm.collectionVariables.set('last_order_id', json.order.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear Orden - iPhone 15 (Cliente 2)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order\": {\n    \"customer_id\": 2,\n    \"product_name\": \"iPhone 15 Pro Max\",\n    \"quantity\": 2,\n    \"price\": 1199.99\n  }\n}"
+            },
+            "url": {
+              "raw": "{{order_service_url}}/api/v1/orders",
+              "host": ["{{order_service_url}}"],
+              "path": ["api", "v1", "orders"]
+            },
+            "description": "Crea una orden de 2 iPhones para Carlos López (ID 2).\n\n`total_amount` = quantity * price = 2 * 1199.99 = 2399.98"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Order created for Carlos', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.order.customer_id).to.equal(2);",
+                  "    pm.expect(json.order.quantity).to.equal(2);",
+                  "    pm.expect(json.order.total_amount).to.equal(2399.98);",
+                  "    pm.expect(json.customer.customer_name).to.equal('Carlos López');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear Orden - AirPods (Cliente 3)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order\": {\n    \"customer_id\": 3,\n    \"product_name\": \"AirPods Pro 2\",\n    \"quantity\": 3,\n    \"price\": 249.99\n  }\n}"
+            },
+            "url": {
+              "raw": "{{order_service_url}}/api/v1/orders",
+              "host": ["{{order_service_url}}"],
+              "path": ["api", "v1", "orders"]
+            },
+            "description": "Crea una orden de 3 AirPods para Ana Martínez (ID 3)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Order created for Ana', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.order.customer_id).to.equal(3);",
+                  "    pm.expect(json.order.total_amount).to.equal(749.97);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear Segunda Orden - iPad (Cliente 1)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order\": {\n    \"customer_id\": 1,\n    \"product_name\": \"iPad Pro 12.9\",\n    \"quantity\": 1,\n    \"price\": 1099.00\n  }\n}"
+            },
+            "url": {
+              "raw": "{{order_service_url}}/api/v1/orders",
+              "host": ["{{order_service_url}}"],
+              "path": ["api", "v1", "orders"]
+            },
+            "description": "Crea una segunda orden para María García (ID 1).\n\nDespués de esta orden, su `orders_count` debería incrementarse nuevamente.\n\n**Caso de uso:** Demostrar que múltiples órdenes del mismo cliente incrementan el contador correctamente."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Second order for María created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.order.customer_id).to.equal(1);",
+                  "    pm.expect(json.order.product_name).to.equal('iPad Pro 12.9');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar Todas las Órdenes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{order_service_url}}/api/v1/orders",
+              "host": ["{{order_service_url}}"],
+              "path": ["api", "v1", "orders"]
+            },
+            "description": "Lista todas las órdenes creadas.\n\nCada orden incluye: id, customer_id, product_name, quantity, status, price, total_amount, created_at."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Orders list returned', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.be.an('array');",
+                  "    pm.expect(json.length).to.be.greaterThan(0);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filtrar Órdenes por Cliente 1",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{order_service_url}}/api/v1/orders?customer_id=1",
+              "host": ["{{order_service_url}}"],
+              "path": ["api", "v1", "orders"],
+              "query": [
+                {
+                  "key": "customer_id",
+                  "value": "1",
+                  "description": "Filtrar por ID de cliente"
+                }
+              ]
+            },
+            "description": "Lista solo las órdenes del cliente 1 (María García).\n\nDebería mostrar todas las órdenes creadas para este cliente."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Filtered orders for customer 1', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.be.an('array');",
+                  "    json.forEach(function(order) {",
+                  "        pm.expect(order.customer_id).to.equal(1);",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filtrar Órdenes por Cliente 2",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{order_service_url}}/api/v1/orders?customer_id=2",
+              "host": ["{{order_service_url}}"],
+              "path": ["api", "v1", "orders"],
+              "query": [
+                {
+                  "key": "customer_id",
+                  "value": "2"
+                }
+              ]
+            },
+            "description": "Lista solo las órdenes del cliente 2 (Carlos López)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Filtered orders for customer 2', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    json.forEach(function(order) {",
+                  "        pm.expect(order.customer_id).to.equal(2);",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Obtener Orden por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{order_service_url}}/api/v1/orders/1",
+              "host": ["{{order_service_url}}"],
+              "path": ["api", "v1", "orders", "1"]
+            },
+            "description": "Obtiene el detalle de una orden específica por su ID."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Order detail returned', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('id');",
+                  "    pm.expect(json).to.have.property('customer_id');",
+                  "    pm.expect(json).to.have.property('product_name');",
+                  "    pm.expect(json).to.have.property('quantity');",
+                  "    pm.expect(json).to.have.property('status');",
+                  "    pm.expect(json).to.have.property('price');",
+                  "    pm.expect(json).to.have.property('total_amount');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Orden inexistente (404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{order_service_url}}/api/v1/orders/99999",
+              "host": ["{{order_service_url}}"],
+              "path": ["api", "v1", "orders", "99999"]
+            },
+            "description": "Intenta obtener una orden que no existe.\n\nRespuesta esperada: `404 Not Found`\n```json\n{\"error\": \"Order not found\"}\n```"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Order not found returns 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.error).to.equal('Order not found');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Validaciones y Errores",
+      "description": "Casos de error y validación para demostrar la robustez del sistema.",
+      "item": [
+        {
+          "name": "Error - Cliente inexistente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order\": {\n    \"customer_id\": 999,\n    \"product_name\": \"Test Product\",\n    \"quantity\": 1,\n    \"price\": 100.00\n  }\n}"
+            },
+            "url": {
+              "raw": "{{order_service_url}}/api/v1/orders",
+              "host": ["{{order_service_url}}"],
+              "path": ["api", "v1", "orders"]
+            },
+            "description": "Intenta crear una orden para un cliente que no existe (ID 999).\n\nEl Order Service valida la existencia del cliente llamando al Customer Service via HTTP. Si no existe, rechaza la orden.\n\nRespuesta esperada: `422 Unprocessable Entity`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Order rejected for non-existent customer', function () {",
+                  "    pm.response.to.have.status(422);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('errors');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error - Campos faltantes",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order\": {\n    \"customer_id\": 1\n  }\n}"
+            },
+            "url": {
+              "raw": "{{order_service_url}}/api/v1/orders",
+              "host": ["{{order_service_url}}"],
+              "path": ["api", "v1", "orders"]
+            },
+            "description": "Intenta crear una orden sin product_name, quantity ni price.\n\nDemuestra las validaciones del modelo Order.\n\nRespuesta esperada: `422 Unprocessable Entity` con lista de errores."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Validation errors returned', function () {",
+                  "    pm.response.to.have.status(422);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('errors');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error - Cantidad inválida (0)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order\": {\n    \"customer_id\": 1,\n    \"product_name\": \"Test Product\",\n    \"quantity\": 0,\n    \"price\": 100.00\n  }\n}"
+            },
+            "url": {
+              "raw": "{{order_service_url}}/api/v1/orders",
+              "host": ["{{order_service_url}}"],
+              "path": ["api", "v1", "orders"]
+            },
+            "description": "Intenta crear una orden con quantity = 0.\n\nEl modelo valida que quantity sea mayor a 0.\n\nRespuesta esperada: `422 Unprocessable Entity`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Invalid quantity rejected', function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error - Precio negativo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order\": {\n    \"customer_id\": 1,\n    \"product_name\": \"Test Product\",\n    \"quantity\": 1,\n    \"price\": -50.00\n  }\n}"
+            },
+            "url": {
+              "raw": "{{order_service_url}}/api/v1/orders",
+              "host": ["{{order_service_url}}"],
+              "path": ["api", "v1", "orders"]
+            },
+            "description": "Intenta crear una orden con precio negativo.\n\nEl modelo valida que price sea mayor a 0.\n\nRespuesta esperada: `422 Unprocessable Entity`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Negative price rejected', function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error - Body vacío",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{order_service_url}}/api/v1/orders",
+              "host": ["{{order_service_url}}"],
+              "path": ["api", "v1", "orders"]
+            },
+            "description": "Envía un body vacío sin el parámetro `order`.\n\nDemuestra manejo de errores cuando falta el parámetro requerido."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Empty body handled gracefully', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Showcase - Flujo Completo E2E",
+      "description": "## Demo paso a paso del flujo completo\n\nEjecuta estas requests **en orden** para demostrar:\n1. Comunicación síncrona (HTTP) entre servicios\n2. Comunicación asíncrona (RabbitMQ) via eventos\n3. Consistencia eventual (orders_count se actualiza automáticamente)\n\n**Tip:** Espera 2-3 segundos entre crear la orden y verificar el orders_count para dar tiempo al consumer de procesar el evento.",
+      "item": [
+        {
+          "name": "PASO 1 - Ver estado inicial de Juan",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{customer_service_url}}/api/v1/customers/4",
+              "host": ["{{customer_service_url}}"],
+              "path": ["api", "v1", "customers", "4"]
+            },
+            "description": "**PASO 1:** Verificar el estado inicial de Juan Hernández (ID 4).\n\nEl `orders_count` debería ser 0 (o el valor actual si ya creaste órdenes antes).\n\nAnotar el valor actual para comparar después."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Step 1 - Get initial state', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.customer_name).to.equal('Juan Hernández');",
+                  "    ",
+                  "    // Save initial count",
+                  "    pm.collectionVariables.set('initial_orders_count', json.orders_count);",
+                  "    console.log('Initial orders_count:', json.orders_count);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PASO 2 - Crear orden para Juan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order\": {\n    \"customer_id\": 4,\n    \"product_name\": \"Samsung Galaxy S24 Ultra\",\n    \"quantity\": 1,\n    \"price\": 1299.99\n  }\n}"
+            },
+            "url": {
+              "raw": "{{order_service_url}}/api/v1/orders",
+              "host": ["{{order_service_url}}"],
+              "path": ["api", "v1", "orders"]
+            },
+            "description": "**PASO 2:** Crear una orden para Juan Hernández.\n\n**Lo que pasa internamente:**\n1. Order Service recibe el POST\n2. Llama a `GET /api/v1/customers/4` en Customer Service (HTTP sync)\n3. Customer Service responde con datos de Juan\n4. Order Service crea la orden en su BD\n5. Publica evento `order.created` en RabbitMQ (exchange: `orders.events`, routing key: `orders.created`)\n6. Sneakers consumer en Customer Service recibe el evento\n7. Incrementa `orders_count` de Juan en la BD de Customer Service"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Step 2 - Order created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.order.customer_id).to.equal(4);",
+                  "    pm.expect(json.customer.customer_name).to.equal('Juan Hernández');",
+                  "    console.log('Order created with ID:', json.order.id);",
+                  "    console.log('Event should be published to RabbitMQ now...');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PASO 3 - Verificar orders_count incrementado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{customer_service_url}}/api/v1/customers/4",
+              "host": ["{{customer_service_url}}"],
+              "path": ["api", "v1", "customers", "4"]
+            },
+            "description": "**PASO 3:** Verificar que `orders_count` de Juan se incrementó.\n\n**Espera 2-3 segundos** después del paso anterior para dar tiempo al consumer de procesar el evento de RabbitMQ.\n\nEl `orders_count` debería ser +1 respecto al valor del PASO 1.\n\n**Esto demuestra:**\n- Comunicación asíncrona via RabbitMQ\n- Consistencia eventual entre microservicios\n- El consumer idempotente procesó el evento correctamente"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Step 3 - orders_count incremented', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    var initialCount = pm.collectionVariables.get('initial_orders_count') || 0;",
+                  "    ",
+                  "    console.log('Previous orders_count:', initialCount);",
+                  "    console.log('Current orders_count:', json.orders_count);",
+                  "    ",
+                  "    pm.expect(json.orders_count).to.be.greaterThan(Number(initialCount));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PASO 4 - Ver orden en listado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{order_service_url}}/api/v1/orders?customer_id=4",
+              "host": ["{{order_service_url}}"],
+              "path": ["api", "v1", "orders"],
+              "query": [
+                {
+                  "key": "customer_id",
+                  "value": "4"
+                }
+              ]
+            },
+            "description": "**PASO 4:** Verificar que la orden aparece en el listado filtrado por cliente.\n\nDemuestra que los datos son consistentes entre ambos servicios."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Step 4 - Order visible in list', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.be.an('array');",
+                  "    pm.expect(json.length).to.be.greaterThan(0);",
+                  "    ",
+                  "    var hasGalaxy = json.some(o => o.product_name === 'Samsung Galaxy S24 Ultra');",
+                  "    pm.expect(hasGalaxy).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6. Showcase - Múltiples Órdenes",
+      "description": "Demuestra el manejo de múltiples órdenes para un mismo cliente y cómo el contador se mantiene consistente.",
+      "item": [
+        {
+          "name": "Ver estado actual de Laura",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{customer_service_url}}/api/v1/customers/5",
+              "host": ["{{customer_service_url}}"],
+              "path": ["api", "v1", "customers", "5"]
+            },
+            "description": "Verificar el estado actual de Laura Sánchez (ID 5) antes de crear múltiples órdenes."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get Laura initial state', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.collectionVariables.set('laura_initial_count', json.orders_count);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Orden 1 para Laura - Laptop",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order\": {\n    \"customer_id\": 5,\n    \"product_name\": \"Dell XPS 15\",\n    \"quantity\": 1,\n    \"price\": 1799.99\n  }\n}"
+            },
+            "url": {
+              "raw": "{{order_service_url}}/api/v1/orders",
+              "host": ["{{order_service_url}}"],
+              "path": ["api", "v1", "orders"]
+            },
+            "description": "Primera orden para Laura."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Order 1 created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Orden 2 para Laura - Monitor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order\": {\n    \"customer_id\": 5,\n    \"product_name\": \"LG UltraWide 34\\\"\",\n    \"quantity\": 2,\n    \"price\": 599.99\n  }\n}"
+            },
+            "url": {
+              "raw": "{{order_service_url}}/api/v1/orders",
+              "host": ["{{order_service_url}}"],
+              "path": ["api", "v1", "orders"]
+            },
+            "description": "Segunda orden para Laura."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Order 2 created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Orden 3 para Laura - Teclado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order\": {\n    \"customer_id\": 5,\n    \"product_name\": \"Logitech MX Keys\",\n    \"quantity\": 1,\n    \"price\": 129.99\n  }\n}"
+            },
+            "url": {
+              "raw": "{{order_service_url}}/api/v1/orders",
+              "host": ["{{order_service_url}}"],
+              "path": ["api", "v1", "orders"]
+            },
+            "description": "Tercera orden para Laura."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Order 3 created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verificar orders_count = +3",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{customer_service_url}}/api/v1/customers/5",
+              "host": ["{{customer_service_url}}"],
+              "path": ["api", "v1", "customers", "5"]
+            },
+            "description": "Espera 3-5 segundos después de la última orden.\n\nVerifica que `orders_count` de Laura se incrementó en 3 respecto al valor inicial.\n\n**Demuestra:** El consumer procesa múltiples eventos correctamente y el contador es consistente."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('orders_count incremented by 3', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    var initialCount = Number(pm.collectionVariables.get('laura_initial_count') || 0);",
+                  "    ",
+                  "    console.log('Initial:', initialCount, 'Current:', json.orders_count);",
+                  "    pm.expect(json.orders_count).to.equal(initialCount + 3);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ver todas las órdenes de Laura",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{order_service_url}}/api/v1/orders?customer_id=5",
+              "host": ["{{order_service_url}}"],
+              "path": ["api", "v1", "orders"],
+              "query": [
+                {
+                  "key": "customer_id",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "Lista las 3 órdenes de Laura para confirmar que se guardaron correctamente en el Order Service."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('All 3 orders visible', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.length).to.be.at.least(3);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
